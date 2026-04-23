@@ -91,12 +91,57 @@ A Windows desktop app (`.exe`) that intercepts real network packets per-process 
 ```
 /app
   /backend          ← Python, FastAPI, WinDivert, algorithms
+        /algorithms
+                token_bucket.py
+                traffic_generator.py
+                wfq.py
+                tests_phase1.py
+        main.py
+        metrics_store.py
+        process_manager.py
+        shaper.py                     
   /frontend         ← React (Vite), Recharts, Tailwind
   /electron         ← Electron main process, IPC, packaging config
   /tests            ← Real download test scripts
   README.md
 ```
+---
 
+### All build phases
+```
+
+Phase 1 — Algorithm Engine (pure Python, no dependencies on anything else)
+
+token_bucket.py — TokenBucket class
+wfq.py — WFQ scheduler
+traffic_generator.py — Sim mode fake packets
+Unit tests for both algorithms
+
+Phase 2 — FastAPI Backend
+
+REST endpoints (get processes, set weights, toggle mode)
+WebSocket that streams live metrics every ~100ms
+Process manager (pid → app name mapping)
+
+Phase 3 — WinDivert Integration
+
+pydivert packet capture loop
+PID tagging per packet
+Hooking real packets into the algorithm engine
+
+Phase 4 — React Frontend
+
+Vite + Tailwind + Recharts setup
+Traffic lane components
+Live charts (WebSocket consumer)
+Priority sliders
+
+Phase 5 — Electron Wrapper
+
+Main process launches backend.exe
+Wraps React build
+electron-builder config for .exe output
+```
 ---
 
 ### What impresses the teacher
