@@ -5,6 +5,7 @@ class ProcessManager:
     """
     Thin wrapper around psutil.
     Provides a full list of running processes and pid → app name resolution.
+    Phase 3 adds: port → pid resolution for WinDivert packet tagging.
     """
 
     def get_all_processes(self) -> list[dict]:
@@ -50,3 +51,40 @@ class ProcessManager:
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 continue
         return result
+
+    def port_to_pid(self, port: int, proto: str = "tcp") -> int | None:
+        """
+        Phase 3 — WinDivert packet → PID resolution.
+
+        WinDivert captures packets at the network layer with no PID attached.
+        We resolve PID by matching the packet's local port against the OS
+        connection table via psutil.net_connections().
+
+        Args:
+            port:  Local port number extracted from the captured packet header.
+            proto: 'tcp' or 'udp' (lowercase). Defaults to 'tcp'.
+
+        Returns:
+            The integer PID owning that port, or None if not found.
+
+        Notes:
+            - psutil.net_connections() requires no special privileges on Windows
+              for most connections, but some system processes may be inaccessible.
+            - This is called per-packet in the capture hot loop, so it must be
+              fast. psutil caches the connection table internally per call —
+              callers should batch lookups where possible (see WinDivertCapture
+              which refreshes the table every 500ms rather than per-packet).
+            - UDP connections may not appear in the table until the socket has
+              sent or received at least one datagram.
+        """
+        kind = proto.lower()  # 'tcp' or 'udp'
+        try:
+            for conn in psutil.net_connections(kind=kind):
+                if conn.laddr and conn.laddr.port == port and conn.pid is not None:
+                    return conn.pid
+        except (psutil.AccessDenied, OSError):
+            # On some Windows configurations net_connections() needs elevation.
+            # If we're already running as admin (required for WinDivert anyway)
+            # this should never fire.
+            pass
+        return None

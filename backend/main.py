@@ -9,7 +9,17 @@ WebSocket:  ws://localhost:8000/ws/metrics
 
 import asyncio
 import json
+import logging
 import uvicorn
+
+# Configure root logger so all modules (including windivert_capture) print to
+# the terminal. Uvicorn only configures its own loggers by default — without
+# this, INFO logs from our code are silently swallowed.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%H:%M:%S",
+)
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -195,6 +205,7 @@ async def startup():
     # Start the shaper tick loop and WebSocket broadcast loop as background tasks
     asyncio.create_task(shaper.run())
     asyncio.create_task(_broadcast_loop())
+    logging.getLogger(__name__).info("NetShaper backend started. Mode: %s", shaper.mode)
 
 
 @app.on_event("shutdown")
