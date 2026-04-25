@@ -152,5 +152,3 @@ electron-builder config for .exe output
 5. **Sim mode** lets you demo without needing actual downloads running
 
 ---
-
-Ready to start building? I'd suggest this order: **algorithms first → FastAPI + WebSocket → React dashboard → WinDivert integration → Electron packaging**. Want me to start with the Python algorithm engine?
