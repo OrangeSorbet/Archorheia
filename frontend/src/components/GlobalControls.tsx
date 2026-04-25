@@ -51,7 +51,7 @@ export function GlobalControls({
     <header className="global-header">
       <div className="header-brand">
         <span className="brand-icon">⬡</span>
-        <span className="brand-name">Archoreia</span>
+        <span className="brand-name">Archorheia</span>
       </div>
 
       <div className="header-controls">
