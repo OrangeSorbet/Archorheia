@@ -1,4 +1,5 @@
 import psutil
+from collections import defaultdict
 
 
 class ProcessManager:
@@ -6,14 +7,10 @@ class ProcessManager:
     Thin wrapper around psutil.
     Provides a full list of running processes and pid → app name resolution.
     Phase 3 adds: port → pid resolution for WinDivert packet tagging.
+    Phase 4 adds: get_network_processes() for the Real-mode Add App modal.
     """
 
     def get_all_processes(self) -> list[dict]:
-        """
-        Returns every running process on the machine.
-        Each entry: { pid, name, status, cpu_percent, memory_mb }
-        Frontend handles any filtering.
-        """
         processes = []
         for proc in psutil.process_iter(["pid", "name", "status", "cpu_percent", "memory_info"]):
             try:
@@ -29,20 +26,91 @@ class ProcessManager:
                     "memory_mb": memory_mb,
                 })
             except (psutil.NoSuchProcess, psutil.AccessDenied):
-                # Process died between iteration steps or we lack permissions — skip it
                 continue
-
         return sorted(processes, key=lambda p: p["name"].lower())
 
+    def get_network_processes(self) -> list[dict]:
+        """
+        Returns only processes that currently have active network connections,
+        grouped by process name (multi-PID apps like Chrome merged into one row).
+
+        Each entry:
+          name        - process name e.g. 'chrome.exe'
+          pid         - lowest PID in the group (representative)
+          pid_count   - total PIDs sharing this name on the network
+          status      - status of the representative PID
+          memory_mb   - summed RSS across all PIDs in the group
+          bytes_sent  - cumulative IO read bytes (activity proxy)
+          bytes_recv  - cumulative IO write bytes (activity proxy)
+
+        Sorted by total IO activity descending (most active first).
+        """
+        # Step 1: collect all PIDs with active inet connections
+        active_pids: set[int] = set()
+        try:
+            for conn in psutil.net_connections(kind="inet"):
+                if conn.pid is not None:
+                    active_pids.add(conn.pid)
+        except (psutil.AccessDenied, OSError):
+            pass
+
+        if not active_pids:
+            return []
+
+        # Step 2: fetch info per PID, group by name
+        groups: dict[str, dict] = {}
+
+        for pid in active_pids:
+            try:
+                proc = psutil.Process(pid)
+                name = proc.name() or "unknown"
+                status = proc.status()
+                mem_mb = round(proc.memory_info().rss / (1024 * 1024), 2)
+
+                try:
+                    io = proc.io_counters()
+                    sent = io.read_bytes
+                    recv = io.write_bytes
+                except (psutil.AccessDenied, AttributeError, NotImplementedError):
+                    sent = 0
+                    recv = 0
+
+                if name not in groups:
+                    groups[name] = {
+                        "name": name,
+                        "pid": pid,
+                        "pid_count": 0,
+                        "status": status,
+                        "memory_mb": 0.0,
+                        "bytes_sent": 0,
+                        "bytes_recv": 0,
+                    }
+
+                g = groups[name]
+                g["pid_count"] += 1
+                g["memory_mb"] = round(g["memory_mb"] + mem_mb, 2)
+                g["bytes_sent"] += sent
+                g["bytes_recv"] += recv
+                if pid < g["pid"]:
+                    g["pid"] = pid
+
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+
+        # Step 3: sort by IO activity descending
+        return sorted(
+            groups.values(),
+            key=lambda e: e["bytes_sent"] + e["bytes_recv"],
+            reverse=True,
+        )
+
     def pid_to_name(self, pid: int) -> str | None:
-        """Resolves a PID to its process name. Returns None if not found."""
         try:
             return psutil.Process(pid).name()
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             return None
 
     def name_to_pids(self, name: str) -> list[int]:
-        """Returns all PIDs currently running under a given process name."""
         result = []
         for proc in psutil.process_iter(["pid", "name"]):
             try:
@@ -53,38 +121,11 @@ class ProcessManager:
         return result
 
     def port_to_pid(self, port: int, proto: str = "tcp") -> int | None:
-        """
-        Phase 3 — WinDivert packet → PID resolution.
-
-        WinDivert captures packets at the network layer with no PID attached.
-        We resolve PID by matching the packet's local port against the OS
-        connection table via psutil.net_connections().
-
-        Args:
-            port:  Local port number extracted from the captured packet header.
-            proto: 'tcp' or 'udp' (lowercase). Defaults to 'tcp'.
-
-        Returns:
-            The integer PID owning that port, or None if not found.
-
-        Notes:
-            - psutil.net_connections() requires no special privileges on Windows
-              for most connections, but some system processes may be inaccessible.
-            - This is called per-packet in the capture hot loop, so it must be
-              fast. psutil caches the connection table internally per call —
-              callers should batch lookups where possible (see WinDivertCapture
-              which refreshes the table every 500ms rather than per-packet).
-            - UDP connections may not appear in the table until the socket has
-              sent or received at least one datagram.
-        """
-        kind = proto.lower()  # 'tcp' or 'udp'
+        kind = proto.lower()
         try:
             for conn in psutil.net_connections(kind=kind):
                 if conn.laddr and conn.laddr.port == port and conn.pid is not None:
                     return conn.pid
         except (psutil.AccessDenied, OSError):
-            # On some Windows configurations net_connections() needs elevation.
-            # If we're already running as admin (required for WinDivert anyway)
-            # this should never fire.
             pass
         return None

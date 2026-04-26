@@ -721,3 +721,263 @@ html, body, #root {
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--c-border2); border-radius: 3px; }
+
+/* ─── Modal: wide variant for Real mode ─────────────────── */
+.modal-wide {
+  width: 620px;
+  max-width: calc(100vw - 32px);
+}
+
+.modal-title-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* Live badge */
+.modal-live-badge {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(52, 211, 153, 0.08);
+  border: 1px solid rgba(52, 211, 153, 0.2);
+  border-radius: 20px;
+  padding: 2px 8px;
+  flex-shrink: 0;
+}
+
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 5px #34d399;
+  animation: pulse-dot 2s ease infinite;
+}
+
+.live-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: #34d399;
+  letter-spacing: 0.03em;
+}
+
+/* Search with icon */
+.modal-search-wrap {
+  position: relative;
+  margin: 10px 20px 0;
+}
+
+.modal-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--c-muted);
+  font-size: 15px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.modal-search-icon-pad {
+  padding-left: 30px !important;
+  margin: 0 !important;
+  width: 100% !important;
+}
+
+.modal-search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--c-muted);
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.modal-search-clear:hover {
+  color: var(--c-text);
+  background: var(--c-border2);
+}
+
+/* Process list column headers */
+.proc-header-row {
+  display: grid;
+  grid-template-columns: 1fr 80px 160px;
+  gap: 8px;
+  padding: 6px 10px 4px;
+  border-bottom: 1px solid var(--c-border);
+  margin-bottom: 2px;
+}
+
+.ph-name,
+.ph-mem,
+.ph-io {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--c-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.ph-mem { text-align: right; }
+.ph-io  { text-align: right; }
+
+/* Process row — Real mode layout */
+.process-row {
+  display: grid;
+  grid-template-columns: 1fr 80px 160px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background var(--transition);
+  border: 1px solid transparent;
+}
+
+.process-row:hover {
+  background: var(--c-surface2);
+}
+
+.process-row.selected {
+  background: rgba(56, 189, 248, 0.08);
+  border-color: rgba(56, 189, 248, 0.25);
+}
+
+/* Process identity */
+.proc-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.proc-pid-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--c-muted);
+}
+
+.proc-mem {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--c-muted);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.proc-status-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--c-muted);
+  text-align: right;
+}
+
+/* IO column */
+.proc-io-col {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.proc-io-nums {
+  display: flex;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.io-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.io-up { color: #34d399; }
+.io-dn { color: #60a5fa; }
+
+/* Activity bar */
+.activity-track {
+  height: 3px;
+  background: var(--c-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.activity-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s ease, background 0.15s ease;
+}
+
+/* Spinner */
+.modal-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--c-border2);
+  border-top-color: #38bdf8;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Weight scale labels */
+.weight-scale {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--c-muted);
+  margin-top: -2px;
+  width: 100%;
+}
+
+.weight-num {
+  color: #38bdf8;
+  margin-left: 4px;
+}
+
+/* Selection hint + button group */
+.modal-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.modal-selection-hint {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--c-text);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hint-check {
+  color: #34d399;
+  font-size: 13px;
+}
+
+.modal-btns {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}

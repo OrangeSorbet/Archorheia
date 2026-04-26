@@ -1,10 +1,8 @@
 """
-main.py
-
-FastAPI backend — Phase 2.
-Run with:  python backend/main.py
-Then open: http://localhost:8000/docs  to test every endpoint via the auto-generated UI.
-WebSocket:  ws://localhost:8000/ws/metrics
+main.py — FastAPI backend
+Run with: python backend/main.py
+Docs:     http://localhost:8000/docs
+WS:       ws://localhost:8000/ws/metrics
 """
 
 import asyncio
@@ -12,9 +10,6 @@ import json
 import logging
 import uvicorn
 
-# Configure root logger so all modules (including windivert_capture) print to
-# the terminal. Uvicorn only configures its own loggers by default — without
-# this, INFO logs from our code are silently swallowed.
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -29,52 +24,44 @@ from process_manager import ProcessManager
 from metrics_store import MetricsStore
 from shaper import Shaper
 
-
-# ---------------------------------------------------------------------------
-# App setup
-# ---------------------------------------------------------------------------
-
 app = FastAPI(title="NetShaper Backend", version="2.0.0")
 
-# Open CORS for localhost — required when Electron / React dev server calls this
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # tightened to localhost only in production build
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Singletons
 process_manager = ProcessManager()
-metrics_store = MetricsStore()
-shaper = Shaper(metrics_store)
+metrics_store   = MetricsStore()
+shaper          = Shaper(metrics_store)
 
-# Connected WebSocket clients
 _ws_clients: list[WebSocket] = []
 
 
 # ---------------------------------------------------------------------------
-# Pydantic request models
+# Request models
 # ---------------------------------------------------------------------------
 
 class AddProcessRequest(BaseModel):
-    name: str = Field(..., description="Process name e.g. 'chrome.exe'")
-    weight: int = Field(1, ge=1, le=10, description="Initial WFQ weight (1–10)")
+    name:   str = Field(..., description="Process name e.g. 'chrome.exe'")
+    weight: int = Field(1, ge=1, le=10)
 
 class SetWeightRequest(BaseModel):
-    name: str
+    name:   str
     weight: int = Field(..., ge=1, le=10)
 
 class SetModeRequest(BaseModel):
     mode: str = Field(..., description="'sim' or 'real'")
 
 class AddSimAppRequest(BaseModel):
-    name: str = Field(..., description="Fake app name for Sim mode")
+    name:   str = Field(..., description="Fake app name for Sim mode")
     weight: int = Field(1, ge=1, le=10)
 
 class SetBandwidthRequest(BaseModel):
-    mbps: float = Field(..., gt=0, description="Total pipe bandwidth in Mbps")
+    mbps: float = Field(..., gt=0)
 
 
 # ---------------------------------------------------------------------------
@@ -83,69 +70,68 @@ class SetBandwidthRequest(BaseModel):
 
 @app.get("/processes", summary="List all running processes")
 def get_processes():
-    """Returns every running process on the machine. Frontend handles filtering."""
+    """Full process list — used by Sim mode Add App modal."""
     return {"processes": process_manager.get_all_processes()}
+
+
+@app.get("/network-processes", summary="List processes with active network connections")
+def get_network_processes():
+    """
+    Returns only processes that currently have active network (inet) connections.
+    Grouped by process name — multi-PID apps (Chrome, Firefox) appear as one row.
+    Sorted by IO activity descending (most active first).
+
+    Each entry:
+      name        - e.g. 'chrome.exe'
+      pid         - lowest PID in the group
+      pid_count   - number of PIDs sharing this name on the network
+      status      - OS process status of the representative PID
+      memory_mb   - total RSS across all PIDs in the group
+      bytes_sent  - cumulative IO read bytes (activity proxy)
+      bytes_recv  - cumulative IO write bytes (activity proxy)
+
+    Used by: Real mode Add App modal (refreshed every 3s while modal is open).
+    """
+    return {"processes": process_manager.get_network_processes()}
 
 
 @app.post("/add-process", summary="Add a real process to the shaper")
 def add_process(req: AddProcessRequest):
-    """
-    Adds a process (by name) to the shaping pipeline.
-    In Sim mode the TrafficGenerator will simulate its traffic immediately.
-    """
     shaper.add_app(req.name, req.weight)
     return {"ok": True, "added": req.name, "weight": req.weight}
 
 
-@app.post("/set-weight", summary="Change priority weight for a process")
+@app.post("/add-sim-app", summary="Add a fake app in Sim mode")
+def add_sim_app(req: AddSimAppRequest):
+    shaper.add_app(req.name, req.weight)
+    return {"ok": True, "added": req.name, "weight": req.weight}
+
+
+@app.post("/set-weight", summary="Change WFQ priority weight for a process")
 def set_weight(req: SetWeightRequest):
-    """
-    Updates the WFQ weight for a tracked process.
-    Weight range: 1 (lowest) – 10 (highest).
-    Bandwidth shares rebalance immediately across all tracked apps.
-    """
     shaper.set_weight(req.name, req.weight)
     return {"ok": True, "name": req.name, "weight": req.weight}
 
 
 @app.post("/set-mode", summary="Toggle Real / Sim mode")
 def set_mode(req: SetModeRequest):
-    """
-    'sim'  — TrafficGenerator drives fake packets through the algorithm pipeline.
-    'real' — WinDivert (Phase 3) feeds real packets. No-op until Phase 3 is wired.
-    """
     shaper.set_mode(req.mode)
     return {"ok": True, "mode": req.mode}
 
 
-@app.post("/add-sim-app", summary="Add a fake app in Sim mode")
-def add_sim_app(req: AddSimAppRequest):
-    """
-    Adds a fake application to the shaper (for demo / Sim mode use).
-    Behaves identically to add-process — TrafficGenerator handles it.
-    """
-    shaper.add_app(req.name, req.weight)
-    return {"ok": True, "added": req.name, "weight": req.weight}
-
-
-@app.get("/status", summary="Current state of all tracked apps")
-def get_status():
-    """Returns the latest metrics snapshot for every tracked app."""
-    return {
-        "mode": shaper.mode,
-        "total_bandwidth_mbps": shaper.total_bandwidth_mbps,
-        "apps": metrics_store.snapshot(),
-    }
-
-
 @app.post("/set-bandwidth", summary="Set total pipe bandwidth")
 def set_bandwidth(req: SetBandwidthRequest):
-    """
-    Overrides the default 100 Mbps total bandwidth.
-    WFQ shares rebalance immediately.
-    """
     shaper.set_bandwidth(req.mbps)
     return {"ok": True, "total_bandwidth_mbps": req.mbps}
+
+
+@app.get("/status", summary="Current shaper state")
+def get_status():
+    return {
+        "mode": shaper.mode,
+        "bandwidth_mbps": shaper.total_bandwidth_mbps,
+        "metrics": metrics_store.snapshot(),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -154,34 +140,17 @@ def set_bandwidth(req: SetBandwidthRequest):
 
 @app.websocket("/ws/metrics")
 async def ws_metrics(websocket: WebSocket):
-    """
-    Pushes a JSON snapshot of all tracked app metrics every ~100ms.
-
-    Example payload:
-    {
-      "chrome.exe": {
-        "throughput_mbps": 4.2, "latency_ms": 12,
-        "packet_loss_pct": 0.0, "weight": 5, "tokens_available": 830
-      },
-      ...
-    }
-
-    Test from browser console:
-      const ws = new WebSocket("ws://localhost:8000/ws/metrics");
-      ws.onmessage = e => console.log(JSON.parse(e.data));
-    """
     await websocket.accept()
     _ws_clients.append(websocket)
     try:
         while True:
-            # Keep connection alive — actual pushes come from the broadcast loop
             await websocket.receive_text()
     except WebSocketDisconnect:
-        _ws_clients.remove(websocket)
+        if websocket in _ws_clients:
+            _ws_clients.remove(websocket)
 
 
 async def _broadcast_loop():
-    """Runs forever — pushes metrics snapshot to every connected WS client every 100ms."""
     while True:
         if _ws_clients:
             payload = json.dumps(metrics_store.snapshot())
@@ -192,7 +161,8 @@ async def _broadcast_loop():
                 except Exception:
                     dead.append(ws)
             for ws in dead:
-                _ws_clients.remove(ws)
+                if ws in _ws_clients:
+                    _ws_clients.remove(ws)
         await asyncio.sleep(0.1)
 
 
@@ -202,7 +172,6 @@ async def _broadcast_loop():
 
 @app.on_event("startup")
 async def startup():
-    # Start the shaper tick loop and WebSocket broadcast loop as background tasks
     asyncio.create_task(shaper.run())
     asyncio.create_task(_broadcast_loop())
     logging.getLogger(__name__).info("NetShaper backend started. Mode: %s", shaper.mode)
@@ -212,10 +181,6 @@ async def startup():
 async def shutdown():
     shaper.stop()
 
-
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)

@@ -1,4 +1,4 @@
-import type { ProcessEntry, BackendStatus, AppMode } from '../types/metrics';
+import type { ProcessEntry, NetworkProcessEntry, BackendStatus, AppMode } from '../types/metrics';
 
 const BASE = '/api';
 
@@ -22,7 +22,14 @@ async function get<T>(path: string): Promise<T> {
 }
 
 export const api = {
-  getProcesses: () => get<ProcessEntry[]>('/processes'),
+  // Returns unwrapped array from { processes: [...] } shape
+  getProcesses: () =>
+    get<{ processes: ProcessEntry[] }>('/processes').then(r => r.processes),
+
+  // Only processes with active network connections — used by Real mode picker
+  // Backend returns { processes: NetworkProcessEntry[] }
+  getNetworkProcesses: () =>
+    get<{ processes: NetworkProcessEntry[] }>('/network-processes').then(r => r.processes),
 
   getStatus: () => get<BackendStatus>('/status'),
 
