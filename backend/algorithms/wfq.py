@@ -122,6 +122,15 @@ class WFQScheduler:
             self._total_bw = bps
             self._rebalance()
 
+    def set_rate_limit(self, pid: int, rate_bps: float) -> None:
+        """Pin a process's bucket to a hard rate cap, bypassing WFQ share."""
+        with self._lock:
+            entry = self._processes.get(pid)
+            if entry is None:
+                raise KeyError(f"PID {pid} not found")
+            entry.weight = -1          # sentinel: manual override
+            entry.bucket.update_rate(max(rate_bps, self.MIN_RATE_BPS))
+
     # ── packet path ───────────────────────────────────────────────────────────
 
     def consume(self, pid: int, packet_size_bytes: int) -> dict:
@@ -187,11 +196,13 @@ class WFQScheduler:
         """Recalculate and push new rates to all buckets. Must hold lock."""
         total_w = self._total_weight()
         for entry in self._processes.values():
+            if entry.weight < 0:       # manual rate-limit override — skip WFQ
+                continue
             rate = self._rate_for_weight(entry.weight, total_w)
             entry.bucket.update_rate(rate)
 
     def _total_weight(self) -> float:
-        return sum(e.weight for e in self._processes.values()) or 1.0
+        return sum(e.weight for e in self._processes.values() if e.weight > 0) or 1.0
 
     def _rate_for_weight(self, weight: float, total_weight: float) -> float:
         rate = (weight / total_weight) * self._total_bw

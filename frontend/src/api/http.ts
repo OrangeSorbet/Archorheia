@@ -44,5 +44,9 @@ export const api = {
 
   setMode: (mode: AppMode) => post('/set-mode', { mode }),
 
-  setBandwidth: (mbps: number) => post('/set-bandwidth', { mbps }),
+  setRateLimit: (name: string, value: number, unit: string) =>
+    post('/set-rate-limit', { name, rate_value: value, rate_unit: unit }),
+  
+  setBandwidth: (value: number, unit: string) =>
+      post('/set-bandwidth', { rate_value: value, rate_unit: unit }),
 };

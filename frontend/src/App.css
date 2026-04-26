@@ -156,6 +156,68 @@ html, body, #root {
   color: var(--c-muted);
 }
 
+.bw-unit-select {
+  background: var(--c-bg);
+  border: 1px solid var(--c-border2);
+  border-radius: 5px;
+  color: var(--c-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 3px 4px;
+  cursor: pointer;
+  outline: none;
+}
+
+.bw-unit-select:focus {
+  border-color: #38bdf8;
+  color: var(--c-text);
+}
+
+.lane-rate-limit {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+}
+
+.rl-input {
+  width: 52px;
+  padding: 2px 6px;
+  background: var(--c-bg);
+  border: 1px solid var(--c-border2);
+  border-radius: 5px;
+  color: var(--c-text);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-align: right;
+  outline: none;
+}
+
+.rl-input:focus {
+  border-color: var(--lane-color, #38bdf8);
+}
+
+.rl-input::placeholder {
+  color: var(--c-muted);
+}
+
+.rl-unit-select {
+  background: var(--c-bg);
+  border: 1px solid var(--c-border2);
+  border-radius: 5px;
+  color: var(--c-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  padding: 2px 4px;
+  cursor: pointer;
+  outline: none;
+}
+
+.rl-unit-select:focus {
+  border-color: var(--lane-color, #38bdf8);
+  color: var(--c-text);
+}
+
 /* Add app button */
 .btn-add {
   padding: 5px 14px;

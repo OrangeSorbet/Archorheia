@@ -60,8 +60,14 @@ class AddSimAppRequest(BaseModel):
     name:   str = Field(..., description="Fake app name for Sim mode")
     weight: int = Field(1, ge=1, le=10)
 
+class SetRateLimitRequest(BaseModel):
+    name: str
+    rate_value: float = Field(..., gt=0)
+    rate_unit: str = Field("mbps")
+
 class SetBandwidthRequest(BaseModel):
-    mbps: float = Field(..., gt=0)
+    rate_value: float = Field(..., gt=0)
+    rate_unit: str = Field("mbps", description="mbps|kbps|gbps|MBs|KBs|GBs")
 
 
 # ---------------------------------------------------------------------------
@@ -119,11 +125,23 @@ def set_mode(req: SetModeRequest):
     return {"ok": True, "mode": req.mode}
 
 
+_UNIT_TO_BPS = {
+    "kbps": 1_000, "mbps": 1_000_000, "gbps": 1_000_000_000,
+    "kbs":  8_000, "mbs":  8_000_000, "gbs":  8_000_000_000,
+}
+
+@app.post("/set-rate-limit", summary="Set per-app token bucket rate limit")
+def set_rate_limit(req: SetRateLimitRequest):
+    bps = req.rate_value * _UNIT_TO_BPS.get(req.rate_unit.lower(), 1_000_000)
+    shaper.set_rate_limit(req.name, bps)
+    return {"ok": True, "name": req.name, "rate_bps": bps}
+    
 @app.post("/set-bandwidth", summary="Set total pipe bandwidth")
 def set_bandwidth(req: SetBandwidthRequest):
-    shaper.set_bandwidth(req.mbps)
-    return {"ok": True, "total_bandwidth_mbps": req.mbps}
-
+    bps = req.rate_value * _UNIT_TO_BPS.get(req.rate_unit.lower(), 1_000_000)
+    mbps = bps / 1_000_000
+    shaper.set_bandwidth(mbps)
+    return {"ok": True, "total_bandwidth_mbps": mbps}
 
 @app.get("/status", summary="Current shaper state")
 def get_status():

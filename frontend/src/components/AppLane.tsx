@@ -1,8 +1,10 @@
+import { useRef, useState } from 'react';
 import type { AppState } from '../types/metrics';
 import { ThroughputChart } from './ThroughputChart';
 import { LatencyChart } from './LatencyChart';
 import { TokenGauge } from './TokenGauge';
 import { WeightSlider } from './WeightSlider';
+import { api } from '../api/http';
 
 interface Props {
   appState: AppState;
@@ -17,6 +19,29 @@ function shortName(name: string) {
 
 export function AppLane({ appState, color, onRemove }: Props) {
   const { latest, history } = appState;
+  const [rlValue, setRlValue] = useState('');
+  const [rlUnit, setRlUnit] = useState('mbs');
+  const rlTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleRlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setRlValue(e.target.value);
+    const val = parseFloat(e.target.value);
+    if (isNaN(val) || val <= 0) return;
+    if (rlTimer.current) clearTimeout(rlTimer.current);
+    rlTimer.current = setTimeout(async () => {
+      try { await api.setRateLimit(latest.name, val, rlUnit); } catch {}
+    }, 400);
+  };
+
+  const handleRlUnitChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setRlUnit(e.target.value);
+    const val = parseFloat(rlValue);
+    if (isNaN(val) || val <= 0) return;
+    if (rlTimer.current) clearTimeout(rlTimer.current);
+    rlTimer.current = setTimeout(async () => {
+      try { await api.setRateLimit(latest.name, val, e.target.value); } catch {}
+    }, 400);
+  };
 
   // No /remove-process endpoint in Phase 1–3 backend — hide locally.
   // When the backend adds it, swap onRemove to call api.removeProcess() first.
@@ -36,6 +61,25 @@ export function AppLane({ appState, color, onRemove }: Props) {
           <span className="lane-dot" style={{ background: color }} />
           <h3 className="lane-title">{shortName(latest.name)}</h3>
           <span className="lane-pid-label">{latest.name}</span>
+          <div className="lane-rate-limit">
+            <input
+              type="number"
+              className="rl-input"
+              placeholder="∞"
+              value={rlValue}
+              onChange={handleRlChange}
+              min={0.1}
+              step={1}
+            />
+            <select className="rl-unit-select" value={rlUnit} onChange={handleRlUnitChange}>
+              <option value="kbps">Kbps</option>
+              <option value="mbps">Mbps</option>
+              <option value="gbps">Gbps</option>
+              <option value="kbs">KB/s</option>
+              <option value="mbs">MB/s</option>
+              <option value="gbs">GB/s</option>
+            </select>
+          </div>
         </div>
         <div className="lane-stats">
           <Stat label="↑" value={`${latest.throughput_mbps.toFixed(2)} Mbps`} />

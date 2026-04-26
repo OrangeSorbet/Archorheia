@@ -20,6 +20,7 @@ export function GlobalControls({
   onAddApp,
 }: Props) {
   const [bwInput, setBwInput] = useState(bandwidth.toString());
+  const [bwUnit, setBwUnit] = useState('mbps');
   const bwTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleModeToggle = async () => {
@@ -39,8 +40,9 @@ export function GlobalControls({
     if (bwTimer.current) clearTimeout(bwTimer.current);
     bwTimer.current = setTimeout(async () => {
       try {
-        await api.setBandwidth(val);
-        onBandwidthChange(val);
+        await api.setBandwidth(val, bwUnit);
+        const mbps = val * ({ kbps:0.001, mbps:1, gbps:1000, kbs:0.008, mbs:8, gbs:8000 }[bwUnit] ?? 1);
+        onBandwidthChange(mbps);
       } catch {
         /* ignore */
       }
@@ -82,7 +84,18 @@ export function GlobalControls({
             min={1}
             step={10}
           />
-          <span className="bw-unit">Mbps</span>
+          <select
+            className="bw-unit-select"
+            value={bwUnit}
+            onChange={(e) => setBwUnit(e.target.value)}
+          >
+            <option value="kbps">Kbps</option>
+            <option value="mbps">Mbps</option>
+            <option value="gbps">Gbps</option>
+            <option value="kbs">KB/s</option>
+            <option value="mbs">MB/s</option>
+            <option value="gbs">GB/s</option>
+          </select>
         </div>
 
         {/* Add app */}

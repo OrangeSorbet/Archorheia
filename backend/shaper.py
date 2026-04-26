@@ -203,6 +203,12 @@ class Shaper:
             # Restart sim traffic generation.
             self._traffic_gen.start()
 
+    def set_rate_limit(self, name: str, rate_bps: float):
+            pid = self._name_to_pid.get(name)
+            if pid is None:
+                return
+            self._scheduler.set_rate_limit(pid, rate_bps)
+            
     def set_bandwidth(self, mbps: float):
         self.total_bandwidth_mbps = mbps
         self._scheduler.set_total_bandwidth(mbps * 1_000_000)
