@@ -1,11 +1,5 @@
-Perfect. I now have everything. Let me give you the full architecture plan.
-
----
-
-## Full Project Blueprint
-
 ### What it does
-A Windows desktop app (`.exe`) that intercepts real network packets per-process using WinDivert, applies WFQ + Token Bucket shaping logic in Python, and shows a live Electron+React dashboard. Has a toggle between **Real mode** (actual throttling) and **Sim mode** (fake traffic, same visuals).
+A website that intercepts real network packets per-process using WinDivert, applies WFQ + Token Bucket shaping logic in Python, and shows a live React dashboard. Has a toggle between **Real mode** (actual throttling) and **Sim mode** (fake traffic, same visuals).
 
 ---
 
@@ -17,8 +11,6 @@ A Windows desktop app (`.exe`) that intercepts real network packets per-process 
 | Backend | **Python (FastAPI)** | `pydivert` is Python, FastAPI serves REST + WebSocket to frontend |
 | Algorithm engine | **Python** | Token Bucket + WFQ implemented from scratch |
 | Frontend | **React + Recharts** | Real-time charts, sliders, traffic lanes |
-| Desktop wrapper | **Electron** | Wraps React, bundles everything into `.exe` |
-| Packaging | **PyInstaller + electron-builder** | Single `.exe` output |
 
 ---
 
@@ -35,7 +27,7 @@ A Windows desktop app (`.exe`) that intercepts real network packets per-process 
         ↓
 [FastAPI backend — exposes WebSocket]
         ↓
-[Electron + React Dashboard]
+[React Dashboard]
   ├── Live throughput chart per app
   ├── Latency + packet loss metrics
   ├── Animated traffic lane visualization
@@ -70,15 +62,6 @@ A Windows desktop app (`.exe`) that intercepts real network packets per-process 
 
 ---
 
-### Packaging into `.exe`
-- Python backend → **PyInstaller** → `backend.exe`
-- React → built static files → bundled inside Electron
-- Electron launches `backend.exe` as a child process on startup
-- **electron-builder** → single NSIS installer `.exe`
-- Requires admin rights on install (for WinDivert driver)
-
----
-
 ### Testing Plan
 - Download a real large file (e.g. Ubuntu ISO) in browser + run Steam update simultaneously
 - Set Chrome priority high, Steam low → verify Chrome gets majority share in dashboard
@@ -101,7 +84,6 @@ A Windows desktop app (`.exe`) that intercepts real network packets per-process 
         process_manager.py
         shaper.py                     
   /frontend         ← React (Vite), Recharts, Tailwind
-  /electron         ← Electron main process, IPC, packaging config
   /tests            ← Real download test scripts
   README.md
 ```
@@ -135,20 +117,4 @@ Vite + Tailwind + Recharts setup
 Traffic lane components
 Live charts (WebSocket consumer)
 Priority sliders
-
-Phase 5 — Electron Wrapper
-
-Main process launches backend.exe
-Wraps React build
-electron-builder config for .exe output
 ```
----
-
-### What impresses the teacher
-1. **Real kernel-level packet interception** — not fake, WinDivert is what VPNs use
-2. **Two algorithms implemented from scratch** with mathematical correctness
-3. **Live metrics** updating via WebSocket
-4. **Packaged as a real app** — not "run this Python script"
-5. **Sim mode** lets you demo without needing actual downloads running
-
----
